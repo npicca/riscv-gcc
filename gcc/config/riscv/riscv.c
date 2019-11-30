@@ -977,6 +977,21 @@ riscv_load_store_insns (rtx mem, rtx_insn *insn)
   return riscv_address_insns (XEXP (mem, 0), mode, might_split_p);
 }
 
+/* Signs SRC using CTX, storing the result into DST  */
+
+rtx riscv_emit_pac (rtx dst, rtx src, rtx ctx)
+{
+  return emit_insn (gen_pac (dst, src, ctx));
+}
+
+/* Authenticates SRC using CTX, storing the result back into DST  */
+
+rtx riscv_emit_auth (rtx dst, rtx src, rtx ctx)
+{
+  return emit_insn (gen_auth (dst, src, ctx));
+}
+
+
 /* Emit a move from SRC to DEST.  Assume that the move expanders can
    handle all moves if !can_create_pseudo_p ().  The distinction is
    important because, unlike emit_move_insn, the move expanders know
@@ -3651,7 +3666,7 @@ riscv_set_return_address (rtx address, rtx scratch)
 }
 
 /* A function to save or store a register.  The first argument is the
-   register and the second is the stack slot.  */
+   register and the second is the stack slot. */
 typedef void (*riscv_save_restore_fn) (rtx, rtx);
 
 /* Use FN to save or restore register REGNO.  MODE is the register's
@@ -3722,10 +3737,13 @@ riscv_for_each_saved_reg (HOST_WIDE_INT sp_offset, riscv_save_restore_fn fn,
 }
 
 /* Save register REG to MEM.  Make the instruction frame-related.  */
-
 static void
 riscv_save_reg (rtx reg, rtx mem)
 {
+  rtx signature = riscv_emit_pac (reg, reg, stack_pointer_rtx);
+  add_reg_note (signature, REG_CFA_TOGGLE_RA_MANGLE, const0_rtx);
+  RTX_FRAME_RELATED_P (signature) = 1;
+
   riscv_emit_move (mem, reg);
   riscv_set_frame_expr (riscv_frame_set (mem, reg));
 }
@@ -3736,6 +3754,11 @@ static void
 riscv_restore_reg (rtx reg, rtx mem)
 {
   rtx insn = riscv_emit_move (reg, mem);
+
+  rtx signature = riscv_emit_auth (reg, reg, stack_pointer_rtx);
+  add_reg_note (signature, REG_CFA_TOGGLE_RA_MANGLE, const0_rtx);
+  RTX_FRAME_RELATED_P (signature) = 1;
+
   rtx dwarf = NULL_RTX;
   dwarf = alloc_reg_note (REG_CFA_RESTORE, reg, dwarf);
 

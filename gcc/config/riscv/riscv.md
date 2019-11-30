@@ -45,6 +45,10 @@
 
   ;; Stack tie
   UNSPEC_TIE
+
+  ;;PAC unspecs
+  UNSPEC_AUTH
+  UNSPEC_PAC
 ])
 
 (define_c_enum "unspecv" [
@@ -139,7 +143,7 @@
 ;; logical      integer logical instructions
 ;; shift	integer shift instructions
 ;; slt		set less than instructions
-;; imul		integer multiply 
+;; imul		integer multiply
 ;; idiv		integer divide
 ;; move		integer register move (addi rd, rs1, 0)
 ;; fmove	floating point register move
@@ -473,6 +477,43 @@
   "add%i2w\t%0,%1,%2"
   [(set_attr "type" "arith")
    (set_attr "mode" "SI")])
+
+
+;;
+;;  ....................
+;;
+;;	PAC
+;;
+;;  ....................
+;;
+
+(define_insn "auth"
+  [(set
+      (match_operand:SI 0         "register_operand" "=r")
+      (unspec:SI
+        [(match_operand:SI 1         "register_operand" "r")
+        (match_operand:SI 2         "register_operand" "r")]
+        UNSPEC_AUTH
+        )
+    )]
+  ""
+  "auth\t%0,%1,%2"
+  [(set_attr "type" "arith")
+   (set_attr "mode" "SI")])
+
+(define_insn "pac"
+  [(set
+    (match_operand:SI 0         "register_operand" "=r")
+    (unspec:SI
+      [(match_operand:SI 1         "register_operand" "r")
+      (match_operand:SI 2         "register_operand" "r")]
+      UNSPEC_PAC)
+    )]
+  ""
+  "pac\t%0,%1,%2"
+  [(set_attr "type" "arith")
+  (set_attr "mode" "SI")])
+
 
 ;;
 ;;  ....................
