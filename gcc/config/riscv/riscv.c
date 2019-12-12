@@ -3666,8 +3666,9 @@ riscv_set_return_address (rtx address, rtx scratch)
 }
 
 /* A function to save or store a register.  The first argument is the
-   register and the second is the stack slot. */
-typedef void (*riscv_save_restore_fn) (rtx, rtx);
+   register, the second is the stack slot and the third specifies
+   whether to signed/authenticate the saved value. */
+typedef void (*riscv_save_restore_fn) (rtx, rtx, bool);
 
 /* Use FN to save or restore register REGNO.  MODE is the register's
    mode and OFFSET is the offset of its save slot from the current
@@ -3679,8 +3680,13 @@ riscv_save_restore_reg (machine_mode mode, int regno,
 {
   rtx mem;
 
+  /*  we want to save only ra and fp, otherwise other
+      non-pointer register may be authenticated,
+      corrupting them. */
+  bool is_signed = (regno == RETURN_ADDR_REGNUM) || (regno == S0_REGNUM); 
+
   mem = gen_frame_mem (mode, plus_constant (Pmode, stack_pointer_rtx, offset));
-  fn (gen_rtx_REG (mode, regno), mem);
+  fn (gen_rtx_REG (mode, regno), mem, is_signed);
 }
 
 /* Call FN for each register that is saved by the current function.
@@ -3738,12 +3744,14 @@ riscv_for_each_saved_reg (HOST_WIDE_INT sp_offset, riscv_save_restore_fn fn,
 
 /* Save register REG to MEM.  Make the instruction frame-related.  */
 static void
-riscv_save_reg (rtx reg, rtx mem)
+riscv_save_reg (rtx reg, rtx mem, bool is_signed)
 {
-  rtx signature = riscv_emit_pac (reg, reg, stack_pointer_rtx);
-  add_reg_note (signature, REG_CFA_TOGGLE_RA_MANGLE, const0_rtx);
-  RTX_FRAME_RELATED_P (signature) = 1;
-
+  if(is_signed)
+  {
+    rtx signature = riscv_emit_pac (reg, reg, stack_pointer_rtx);
+    add_reg_note (signature, REG_CFA_TOGGLE_RA_MANGLE, const0_rtx);
+    RTX_FRAME_RELATED_P (signature) = 1;
+  }
   riscv_emit_move (mem, reg);
   riscv_set_frame_expr (riscv_frame_set (mem, reg));
 }
@@ -3751,14 +3759,16 @@ riscv_save_reg (rtx reg, rtx mem)
 /* Restore register REG from MEM.  */
 
 static void
-riscv_restore_reg (rtx reg, rtx mem)
+riscv_restore_reg (rtx reg, rtx mem, bool is_signed)
 {
   rtx insn = riscv_emit_move (reg, mem);
 
-  rtx signature = riscv_emit_auth (reg, reg, stack_pointer_rtx);
-  add_reg_note (signature, REG_CFA_TOGGLE_RA_MANGLE, const0_rtx);
-  RTX_FRAME_RELATED_P (signature) = 1;
-
+  if(is_signed)
+  {
+    rtx signature = riscv_emit_auth (reg, reg, stack_pointer_rtx);
+    add_reg_note (signature, REG_CFA_TOGGLE_RA_MANGLE, const0_rtx);
+    RTX_FRAME_RELATED_P (signature) = 1;
+  }
   rtx dwarf = NULL_RTX;
   dwarf = alloc_reg_note (REG_CFA_RESTORE, reg, dwarf);
 
